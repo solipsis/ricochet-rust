@@ -34,6 +34,7 @@ struct Solver {
     robots: HashMap<char, Robot>,
     target_robot_id: char,
     cache: HashMap<i32, i32>,
+    precomputed_target_moves: Vec<i32>,
     move_stack: Vec<Move>,
 }
 
@@ -50,16 +51,72 @@ impl Solver {
 
         }
 
-        let solver = Solver {
+        let mut solver = Solver {
             board,
             robots,
             cache: HashMap::new(),
             move_stack: Vec::new(),
             target_robot_id,
+            precomputed_target_moves: Vec::new(),
         };
+        solver.precompute_target_moves();
         return solver;
 
 
+    }
+
+    // calculate the minimum number of moves it would take the target to get to the goal
+    // if the piece could move like a rook (stopping arbitrarily). This helps dramatically
+    // prune the search space
+    fn precompute_target_moves(&mut self) {
+
+        let mut optimal_moves: Vec<i32> = Vec::with_capacity(self.board.tiles.len());
+        let mut active_cells: Vec<bool> = Vec::with_capacity(self.board.tiles.len());
+
+        let infinity = 999999;
+        for _ in 0..self.board.tiles.len() {
+            optimal_moves.push(infinity);
+            active_cells.push(false);
+        }
+
+        optimal_moves[self.board.goal.position as usize] = 0;
+        active_cells[self.board.goal.position as usize] = true;
+
+        let mut done = false;
+        while !done {
+            done = true;
+
+            for idx in 0..self.board.tiles.len() {
+
+                if !active_cells[idx] {
+                    continue;
+                }
+                active_cells[idx] = false;
+
+                let score = optimal_moves[idx] + 1;
+                for dir in DIRECTIONS {
+
+                    // move until we hit a wall
+                    let mut current_tile = idx as i32;
+                    loop {
+                        if self.board.has_wall(current_tile, dir) {
+                            break;
+                        }
+
+                        // is this the most efficient path we've found to this square
+                        current_tile += self.board.offset(dir);
+                        if score < optimal_moves[current_tile as usize] {
+                            optimal_moves[current_tile as usize] = score;
+                            active_cells[current_tile as usize] = true;
+                            done = false;
+                        }
+                    }
+
+                }
+            }
+        }
+
+        self.precomputed_target_moves = optimal_moves;
     }
 
     fn solve(&mut self, max_depth: u8) -> bool {
@@ -386,6 +443,7 @@ const IDS: [char; 4] = ['R', 'G', 'B', 'Y'];
 
 fn main() {
 
+    /*
     let tiles = vec![ UP | LEFT,      UP,        UP | RIGHT,
                            LEFT,       0,             RIGHT,
                     LEFT | DOWN,    DOWN,      DOWN | RIGHT];
@@ -404,6 +462,26 @@ fn main() {
 
     let mut solver = Solver::new(board);
     let solved = solver.solve(3);
+    */
+
+    let tiles = vec![5,1,9,5,1,1,1,1,9,5,1,1,1,1,1,9,4,0,0,0,0,0,2,0,0,8,6,0,0,0,0,8,4,0,0,0,0,10,5,0,0,0,1,0,10,4,0,8,4,0,0,0,0,1,0,0,2,0,0,8,5,0,0,8,4,0,0,0,0,0,0,0,9,4,0,0,0,0,0,8,12,6,0,0,0,0,0,0,0,0,0,0,0,2,0,8,6,1,0,0,2,0,0,2,2,16,0,0,0,25,4,8,5,0,0,0,9,4,8,5,9,4,0,0,0,0,0,8,4,0,2,16,8,6,8,6,10,4,0,0,2,0,0,8,4,8,5,0,0,1,0,1,1,0,0,0,9,4,0,10,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,6,0,0,0,0,0,0,0,0,2,0,0,0,0,0,8,5,0,0,0,2,0,0,0,8,5,0,0,0,0,0,8,4,0,0,0,9,4,0,0,0,0,0,0,0,8,6,8,4,10,4,16,0,0,0,0,0,0,0,10,4,0,1,8,6,3,2,2,2,10,6,2,2,2,2,3,2,10,6,10];
+    let initial_robots = vec![Robot{ id: 'B', position: 109},Robot{ id: 'G', position: 227},Robot{ id: 'Y', position: 131},Robot{ id: 'R', position: 105}];
+    let goal = Goal { robot_id: 'Y', position: 133 };
+
+    let width = 16;
+    let height = 16;
+
+    let board = Board{
+        tiles,
+        initial_robots,
+        width,
+        height,
+        goal,
+    };
+
+    let mut solver = Solver::new(board);
+    let solved = solver.solve(10);
+
     if solved {
         for m in solver.move_stack {
             print!("{}{}-", m.robot_id, direction_name(m.direction));
