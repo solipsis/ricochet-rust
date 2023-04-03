@@ -137,26 +137,21 @@ impl Solver {
     }
 
     fn dfs(&mut self, depth: i32, max_depth: i32) -> bool {
-        // are we done
-
-        // TODO: Precompute 
-        //
 
         if depth > max_depth {
             return false;
         }
-
-        //let mut depth: i32 = 0;
 
         // are we done
         if self.robots[&self.target_robot_id].position == self.board.goal.position {
             return true;
         }
 
-        // TODO: Are we within precompute bounds
-        
-        // TODO: Check state cache
-
+        // is the target within the upper bound of theoretical moves remaining
+        let best_possible = self.precomputed_target_moves[self.robots[&self.target_robot_id].position as usize];
+        if best_possible > max_depth - depth {
+            return false;
+        }
 
         // check cache of previously seen states
         let hash = self.compute_hash();
@@ -164,7 +159,7 @@ impl Solver {
             Some(best) => *best,
             None => 0,
         };
-            
+
         if previous_best >= max_depth - depth {
             // We have already been to this state in the past with more moves remainng
             return false; 
@@ -173,15 +168,10 @@ impl Solver {
 
 
 
-
         for id in &IDS {
-     //  self.robots.
-     //   for (id, robot) in &(self.robots) {
             for direction in DIRECTIONS {
 
-             //   let robot = self.robots.get(id).unwrap();
                 let previous_position = self.robots.get(id).unwrap().position;
-               // let previous_position = robot.position;
 
                 if !self.move_robot(*id, direction) {
                     continue;
@@ -222,13 +212,6 @@ impl Solver {
         let robot = self.robots.get_mut(&id).unwrap();
         let start_tile = robot.position;
 
-        /*
-        // can't move
-        if self.board.has_wall(robot.position, direction) {
-            return false;
-        }
-        */
-
         // disallow undoing previous move because it is never optimal
         if let Some(last_move) = self.move_stack.last() {
             let is_same_robot = robot.id == last_move.robot_id;
@@ -238,14 +221,6 @@ impl Solver {
                 return false;
             }
         }
-
-        /*
-        // if next square has a robot, can't move
-        let mut next_tile = robot.position + self.board.offset(direction);
-        if self.board.has_robot(next_tile) {
-            return false;
-        }
-        */
 
         // move until the current square has a wall or the next square has a robot
         //let mut next_tile = robot.position + self.board.offset(direction);
